@@ -1,4 +1,4 @@
-from setuptools import find_packages, setup
+from setuptools import setup
 
 
 def readme():
@@ -28,7 +28,7 @@ setup(
         'nltk',
         'numpy',
         'pathlib',
-        'sklearn ~= 0.18.0',
+        'scikit-learn ~= 0.18.0',
         'textstat',
         'ujson'
     ],
