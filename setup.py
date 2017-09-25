@@ -8,7 +8,7 @@ def readme():
 
 setup(
     name='AirProfile',
-    version='1.0.11',
+    version='1.0.12',
     description='Automatic analysis of Airbnb host profiles.',
     long_description=readme(),
     author='Cornell Tech',
