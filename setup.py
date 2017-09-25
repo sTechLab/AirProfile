@@ -8,7 +8,7 @@ def readme():
 
 setup(
     name='AirProfile',
-    version='1.0.9',
+    version='1.0.11',
     description='Automatic analysis of Airbnb host profiles.',
     long_description=readme(),
     author='Cornell Tech',
@@ -21,6 +21,16 @@ setup(
     ],
     url='https://github.com/sTechLab/AirProfile',
     license='MIT',
-    packages=find_packages(),
+    install_requires=[
+        'beautifulsoup4',
+        'cachetools',
+        'lxml',
+        'nltk',
+        'numpy',
+        'pathlib',
+        'sklearn ~= 0.18.0',
+        'textstat',
+        'ujson'
+    ],
     include_package_data=True,
     zip_safe=False)
