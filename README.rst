@@ -8,31 +8,34 @@ A python package for automatic analysis of Airbnb host profiles.
 
 The package takes an Airbnb profile, automatically tags topics for each sentence, and predicts whether the profile will be perceived as more trustworthy compared to other profiles of similar length.
 
+Installation
+------------
+
+.. code:: bash
+
+  pip install AirProfile
+
+A mirrored package is available on Conda via ``kenlimmj/AirProfile``. However, updates are on a best effort basis, and you should use PyPI where possible.
+
 Example Usage
 -------------
-LIWC2007_ is a proprietary dependency required for predicting trust. Unfortunately, we can't include it in this package for legal reasons :(
-
-.. _LIWC2007: https://liwc.wpengine.com
-
-However, if you do not have LIWC, you can still perform topic classification.
+`LIWC2007 <https://liwc.wpengine.com>`_ is a paid third-party dependency. You'll need your own copy in order to predict trust, but you can still predict topics without it.
 
 .. code:: python
 
-  from AirProfile import AirProfile
-
-  ap = AirProfile(liwc_path='../LIWC2007/liwc_2007.trie')
+  >>> from AirProfile import AirProfile
+  >>> ap = AirProfile(liwc_path='../LIWC2007/liwc_2007.trie')
   # or `ap = AirProfile()`, if you do not have LIWC.
 
   # Example Airbnb host profile.
-  input = "I have spent my life in the service industry." \
+  >>> input = "I have spent my life in the service industry." \
       "I look forward to being your host and I look forward to meeting you."
 
   # Segments the input at the sentence level and returns the probability that
   # each sentence is tagged with the topics described in [1]. This works with or
   # without LIWC.
-  ap.predict_topics(input)
-
-  >>> [
+  >>> ap.predict_topics(input)
+  [
     [
       'i have spent my life in the service industry',
       {
@@ -62,11 +65,37 @@ However, if you do not have LIWC, you can still perform topic classification.
 
   # Segments the input at the sentence level and returns the probability that
   # the profile is perceived to be more trustworthy compared to other profiles
-  # of similar length. This requires LIWC, and will throw an error otherwise.
-  ap.predict_trust(input)
+  # of similar length. This requires LIWC and will throw an error otherwise.
+  >>> ap.predict_trust(input)
+  Prediction(prob=0.49, predict=0)
 
-  >>> Prediction(prob=0.49, predict=0)
+Versioning
+----------
+Development will be maintained under the Semantic Versioning guidelines as much as possible in order to ensure transparency and backward compatibility.
 
+Releases will be numbered with the following format::
+
+<major>.<minor>.<patch>
+
+And constructed with the following guidelines:
+
+- Breaking backward compatibility bumps the major (and resets the minor and
+  patch).
+- New additions without breaking backward compatibility bump the minor (and
+  resets the patch).
+- Bug fixes and miscellaneous changes bump the patch.
+
+For more information on SemVer, visit http://semver.org.
+
+Bug Tracking and Feature Requests
+---------------------------------
+Have a bug or a feature request? `Please open a new issue <https://github.com/sTechLab/AirProfile/issues>`_.
+
+Before opening any issue, please search for existing issues and read the `Issue Guidelines <https://github.com/sTechLab/AirProfile/blob/master/CONTRIBUTING.md>`_.
+
+Contributing
+------------
+Please submit all pull-requests against ``*-wip`` branches. Code should adhere to the `Google Python Style Guide <https://google.github.io/styleguide/pyguide.html>`_ and be linted using `Yapf <https://github.com/google/yapf>`_.
 
 References
 ----------
