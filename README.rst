@@ -10,7 +10,7 @@ The package takes an Airbnb profile, automatically tags topics for each sentence
 
 Example Usage
 -------------
-LIWC2007_ is a proprietary dependency required for predicting trust. Unfortunately, we can't include it in this package for legal reasons.
+LIWC2007_ is a proprietary dependency required for predicting trust. Unfortunately, we can't include it in this package for legal reasons :(
 
 .. _LIWC2007: https://liwc.wpengine.com
 
@@ -21,10 +21,11 @@ However, if you do not have LIWC, you can still perform topic classification.
   from AirProfile import AirProfile
 
   ap = AirProfile(liwc_path='../LIWC2007/liwc_2007.trie')
-  # or ap = AirProfile() if you do not have LIWC.
+  # or `ap = AirProfile()`, if you do not have LIWC.
 
   # Example Airbnb host profile.
-  input = """I have spent my life in the service industry. I look forward to being your host and I look forward to meeting you."""
+  input = "I have spent my life in the service industry." \
+      "I look forward to being your host and I look forward to meeting you."
 
   # Segments the input at the sentence level and returns the probability that
   # each sentence is tagged with the topics described in [1]. This works with or
@@ -61,7 +62,7 @@ However, if you do not have LIWC, you can still perform topic classification.
 
   # Segments the input at the sentence level and returns the probability that
   # the profile is perceived to be more trustworthy compared to other profiles
-  # of similar length. This requires LIWC and will throw an error otherwise.
+  # of similar length. This requires LIWC, and will throw an error otherwise.
   ap.predict_trust(input)
 
   >>> Prediction(prob=0.49, predict=0)

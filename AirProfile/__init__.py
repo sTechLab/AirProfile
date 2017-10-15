@@ -16,6 +16,20 @@ from LiwcUtil import LiwcUtil
 
 
 class AirProfile(object):
+    """Automatic analysis of Airbnb Host profiles.
+
+    To Use:
+    >>> from AirProfile import AirProfile
+    >>> ap = AirProfile(liwc_path='../LIWC2007/liwc_2007.trie')
+    >>> host_profile = "I have spent my life in the service industry." \
+        "I look forward to being your host and I look forward to meeting you."
+    >>> ap.predict_topics(input)
+    >>> ap.predict_trust(input)
+
+    Attributes:
+        Prediction: A named tuple of the prediction result and probability.
+    """
+
     __liwc_internal__ = None
     __vec_internal__ = None
     __classifier_cat_internal__ = None
@@ -27,11 +41,20 @@ class AirProfile(object):
         maxsize=256, missing=partial(WordNetLemmatizer().lemmatize, pos='v'))
 
     __SentenceToken = namedtuple('SentenceToken', ['raw', 'clean'])
-    __Prediction = namedtuple('Prediction', ['prob', 'predict'])
+    Prediction = namedtuple('Prediction', ['prob', 'predict'])
 
     def __init__(self, liwc_path='', model_dir_path='./AirProfile/models'):
+        """
+        Args:
+            liwc_path: The path to the LIWC 2007 trie. Trust prediction will
+                not work unless this is specified.
+            model_dir_path: The directory path for the AirProfile models.
+                Defaults to './AirProfile/models'.
+        """
         self.__liwc_path = liwc_path if isinstance(liwc_path,
                                                    Path) else Path(liwc_path)
+        # TODO(kenlimmj): This should perform a high-level integrity check on
+        #  the directory structure.
         self.__model_dir_path = model_dir_path if isinstance(
             model_dir_path, Path) else Path(model_dir_path)
 
@@ -43,6 +66,7 @@ class AirProfile(object):
 
     @property
     def __vec(self):
+        """Lazily loads the sentence vectorizer model from disk."""
         if not self.__vec_internal__:
             vec_path = (self.__model_dir_path / 'sentence_vectorizer' /
                         'vectorizer.pkl')
@@ -55,6 +79,7 @@ class AirProfile(object):
 
     @property
     def __classifier_cat(self):
+        """Lazily loads the sentence category models from disk."""
         if not self.__classifier_cat_internal__:
             cat_model_dir = self.__model_dir_path / 'sentence_categories'
             if not (cat_model_dir.exists() and cat_model_dir.is_dir()):
@@ -69,6 +94,7 @@ class AirProfile(object):
         return self.__classifier_cat_internal__
 
     def __get_classifier_trust(self, fname):
+        """Lazily loads the trust model from disk."""
         if fname not in self.__classifier_trust_internal__:
             trust_model_path = self.__model_dir_path / 'trust' / fname
             if not (trust_model_path.exists() and trust_model_path.is_file()):
@@ -80,6 +106,25 @@ class AirProfile(object):
         return self.__classifier_trust_internal__[fname]
 
     def predict_trust(self, input, strip_html=True):
+        """Predicts the trustworthiness of a profile.
+
+        Segments the input with sentence-level granularity, returning the
+        probability that the profile represented by the input is perceived to
+        be more trustworthy compared to other profiles of similar length.
+
+        Args:
+            input: An Airbnb host profile, as a string.
+            strip_html: Whether HTML tags in the input should be stripped. True
+                by default, but can be disabled for speed if the input is known
+                to be sanitized.
+
+        Returns:
+            An AirProfile.Prediction object for trustworthiness of the profile.
+
+        Raises:
+            ValueError: If the input is an invalid or empty string.
+            IOError: If the LIWC trie is not available.
+        """
         if not (input and input.strip()):
             raise ValueError
 
@@ -110,23 +155,49 @@ class AirProfile(object):
         model = self.__get_classifier_trust(
             AirProfile.__get_trust_model_fname(wc))
 
-        return self.__Prediction(
+        return self.Prediction(
             np.round(model.predict_proba(X_shape)[0][1], 2),
             model.predict(X_shape)[0])
 
     def __classify_sentence(self, tokens):
+        """Classifies a sentence based on the trust category models.
+
+        Args:
+            tokens: A list of AirProfile.SentenceToken, corresponding to a
+                sentence.
+
+        Returns:
+            A list of AirProfile.Prediction. Each entry in the list corresponds
+            to the prediction made by a category model.
+        """
         vector = self.__vec.transform([' '.join(tokens.clean)])
 
+        # TODO(kenlimmj): This should be an ordered or keyed data structure,
+        # since the category classifiers are reconciled later on.
         output = []
         for classifier in self.__classifier_cat:
-            prediction = self.__Prediction(
+            prediction = self.Prediction(
                 np.round(classifier.predict_proba(vector)[0], 2),
                 classifier.predict(vector)[0])
             output.append(prediction)
 
         return output
 
-    def predict_topics(self, input, strip_html=False):
+    def predict_topics(self, input, strip_html=True):
+        """Predicts the trust evaluation topics for a profile.
+
+        Args:
+            input: An Airbnb host profile, as a string.
+            strip_html: Whether HTML tags in the input should be stripped. True
+                by default, but can be disabled for speed if the input is known
+                to be sanitized.
+
+        Returns:
+            A list of prediction probabilities
+
+        Raises:
+            ValueError: If the input is an invalid or empty string.
+        """
         if not (input and input.strip()):
             raise ValueError
 
@@ -142,7 +213,28 @@ class AirProfile(object):
 
         return results
 
-    def __preprocess(self, input, strip_html=False):
+    # TODO(kenlimmj): Consider making this a decorator, since it's used by both
+    # `predict_topics` and `predict_trust`.
+    def __preprocess(self, input, strip_html=True):
+        """Cleans and tokenizes an input string for trust prediction.
+
+        Performs the follow operations, in order:
+        1. Strips HTML tags, if requested.
+        2. Removes non alphanumeric characters.
+        3. Converts to lowercase.
+        4. Tokenizes on whitespace.
+        5. Removes stopwords (see `constants.STOPWORDS`).
+        6. Lemmatizes each token.
+
+        Args:
+            input: The string to be pre-processed.
+            strip_html: Whether HTML tags in the input should be stripped. True
+                by default, but can be disabled for speed if the input is known
+                to be sanitized.
+
+        Returns:
+            A list of AirProfile.SentenceToken.
+        """
         stripped_html = BeautifulSoup(
             input, 'lxml').get_text() if strip_html else input
 
@@ -165,6 +257,7 @@ class AirProfile(object):
 
     @staticmethod
     def __get_trust_model_feat_cols(wc):
+        """Gets the LIWC features to be evaluated based on word count."""
         feat_cols = FEAT_WC_LING + FEAT_WC_PSYCH + FEAT_WC_CONCERN
         if wc > 19:
             feat_cols += FEAT_WC_CATEGORIES
@@ -172,6 +265,7 @@ class AirProfile(object):
 
     @staticmethod
     def __get_trust_model_fname(wc):
+        """Gets the trust model to be used based on word count."""
         if wc <= 19:
             return 'trust0.pkl'
         elif wc <= 36:

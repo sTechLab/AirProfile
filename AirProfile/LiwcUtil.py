@@ -9,6 +9,7 @@ from constants import (LIWC_CATEGORY_KEYS, LIWC_META_KEYS, LIWC_PUNCT,
 
 
 class LiwcUtil:
+    """A utility class for working with LIWC 2007."""
     __liwc_trie_internal__ = None
 
     def __init__(self, liwc_trie_path):
@@ -28,12 +29,25 @@ class LiwcUtil:
 
     @property
     def __liwc_trie(self):
+        """Lazily loads the LIWC trie from disk."""
         if not self.__liwc_trie_internal__:
             with self.__liwc_trie_path.open() as liwc_trie:
                 self.__liwc_trie_internal__ = ujson.load(liwc_trie)
         return self.__liwc_trie_internal__
 
     def summarize(self, input, sent_tokens, normalize=True):
+        """Constructs a summary of LIWC attributes.
+
+        Args:
+            input: A string to summarize.
+            sent_tokens: A list of AirProfile.SentenceToken corresponding to
+                the input.
+            normalize: Whether the word frequency counts should be normalized
+                to unit density. True by default.
+
+        Returns:
+            A dictionary of LIWC attributes to scores.
+        """
         raw_tokens = list(chain.from_iterable([t.raw for t in sent_tokens]))
 
         counts = Counter(self.__read_tokens(raw_tokens))
@@ -58,6 +72,18 @@ class LiwcUtil:
         return result
 
     def __walk_trie(self, token, token_i=0, trie_cursor=None):
+        """Walks the LIWC trie.
+
+        Args:
+            token: An AirProfile.SentenceToken to be found in the trie.
+            token_i: The index of the token in the sentence. Defaults to 0, the
+                start of the sentence.
+            trie_cursor: Specifies the location in the trie to start walking
+                from. If not specified, starts from the root of the trie.
+
+        Returns:
+            The LIWC category for the word found in the trie.
+        """
         if trie_cursor is None:
             trie_cursor = self.__liwc_trie
 
@@ -75,6 +101,7 @@ class LiwcUtil:
                     yield cat
 
     def __read_tokens(self, tokens):
+        """Walks the LIWC trie for a set of tokens."""
         for t in tokens:
             for cat in self.__walk_trie(t):
                 yield cat
