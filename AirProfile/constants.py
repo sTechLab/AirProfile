@@ -1,3 +1,5 @@
+"""Provides the constants used for LIWC and trust analysis."""
+
 from nltk.corpus import stopwords
 
 LIWC_CATEGORY_KEYS = [

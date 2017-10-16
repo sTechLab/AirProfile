@@ -1,14 +1,19 @@
+"""Provides the LiwcUtil class for managing LIWC attribute computation."""
+
 from collections import Counter
 from itertools import chain
 from pathlib import Path
 
 import ujson
 
-from constants import (LIWC_CATEGORY_KEYS, LIWC_META_KEYS, LIWC_PUNCT,
-                       LIWC_PUNCT_KEYS)
+from .constants import (LIWC_CATEGORY_KEYS, LIWC_META_KEYS, LIWC_PUNCT,
+                        LIWC_PUNCT_KEYS)
 
 
-class LiwcUtil:
+# pylint: disable=too-few-public-methods
+# This class encapsulates a non-trivial amount of computation and abstraction
+# even though it only exposes a single method.
+class LiwcUtil(object):
     """A utility class for working with LIWC 2007."""
     __liwc_trie_internal__ = None
 
@@ -35,13 +40,13 @@ class LiwcUtil:
                 self.__liwc_trie_internal__ = ujson.load(liwc_trie)
         return self.__liwc_trie_internal__
 
-    def summarize(self, input, sent_tokens, normalize=True):
+    def summarize(self, profile, sent_tokens, normalize=True):
         """Constructs a summary of LIWC attributes.
 
         Args:
-            input: A string to summarize.
+            profile: A profile to summarize.
             sent_tokens: A list of AirProfile.SentenceToken corresponding to
-                the input.
+                a tokenization of the profile.
             normalize: Whether the word frequency counts should be normalized
                 to unit density. True by default.
 
@@ -57,7 +62,7 @@ class LiwcUtil:
         counts['Sixltr'] = sum(len(t) > 6 for t in raw_tokens)
         counts['Numerals'] = sum(t.isdigit() for t in raw_tokens)
 
-        character_counts = Counter(input)
+        character_counts = Counter(profile)
         for name, chars in LIWC_PUNCT:
             counts[name] = sum(character_counts[char] for char in chars)
         counts['Parenth'] = counts['Parenth'] / 2.0
@@ -102,6 +107,6 @@ class LiwcUtil:
 
     def __read_tokens(self, tokens):
         """Walks the LIWC trie for a set of tokens."""
-        for t in tokens:
-            for cat in self.__walk_trie(t):
+        for token in tokens:
+            for cat in self.__walk_trie(token):
                 yield cat

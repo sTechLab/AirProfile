@@ -1,3 +1,5 @@
+"""Provides the AirProfile class for analyzing Airbnb host profiles."""
+
 from collections import namedtuple
 from functools import partial
 from pathlib import Path
@@ -10,9 +12,9 @@ from nltk.tokenize import sent_tokenize
 from sklearn.externals import joblib
 from textstat.textstat import textstat as ts
 
-from constants import (FEAT_WC_CATEGORIES, FEAT_WC_CONCERN, FEAT_WC_LING,
-                       FEAT_WC_PSYCH, NON_ALNUM_CHARS, STOPWORDS)
-from LiwcUtil import LiwcUtil
+from .constants import (FEAT_WC_CATEGORIES, FEAT_WC_CONCERN, FEAT_WC_LING,
+                        FEAT_WC_PSYCH, NON_ALNUM_CHARS, STOPWORDS)
+from .LiwcUtil import LiwcUtil
 
 
 class AirProfile(object):
@@ -105,7 +107,7 @@ class AirProfile(object):
 
         return self.__classifier_trust_internal__[fname]
 
-    def predict_trust(self, input, strip_html=True):
+    def predict_trust(self, profile, strip_html=True):
         """Predicts the trustworthiness of a profile.
 
         Segments the input with sentence-level granularity, returning the
@@ -113,7 +115,7 @@ class AirProfile(object):
         be more trustworthy compared to other profiles of similar length.
 
         Args:
-            input: An Airbnb host profile, as a string.
+            profile: An Airbnb host profile, as a string.
             strip_html: Whether HTML tags in the input should be stripped. True
                 by default, but can be disabled for speed if the input is known
                 to be sanitized.
@@ -125,39 +127,39 @@ class AirProfile(object):
             ValueError: If the input is an invalid or empty string.
             IOError: If the LIWC trie is not available.
         """
-        if not (input and input.strip()):
+        if not (profile and profile.strip()):
             raise ValueError
 
         if not (self.__liwc_path.exists() and self.__liwc_path.is_file()):
             raise IOError
 
-        sentence_tokens = self.__preprocess(input, strip_html)
-        liwc_features = self.__liwc.summarize(input, sentence_tokens)
+        sentence_tokens = self.__preprocess(profile, strip_html)
+        liwc_features = self.__liwc.summarize(profile, sentence_tokens)
 
-        wc = liwc_features['WC']
-        liwc_features['wc_log'] = np.log(wc)
+        word_count = liwc_features['WC']
+        liwc_features['wc_log'] = np.log(word_count)
         liwc_features['readability'] = ts.flesch_kincaid_grade(
-            input.decode('utf-8'))
+            profile.decode('utf-8'))
 
         prediction_agg = np.empty(len(self.__classifier_cat))
-        for s in sentence_tokens:
+        for sent in sentence_tokens:
             prediction_agg += np.array(
-                [c.predict for c in self.__classify_sentence(s)])
+                [c.predict for c in self.__classify_sentence(sent)])
 
-        for i in xrange(len(FEAT_WC_CATEGORIES)):
-            liwc_features[FEAT_WC_CATEGORIES[i]] = prediction_agg[i]
+        for idx, cat in enumerate(FEAT_WC_CATEGORIES):
+            liwc_features[cat] = prediction_agg[idx]
 
-        X = [
+        feats = [
             liwc_features[f]
-            for f in AirProfile.__get_trust_model_feat_cols(wc)
+            for f in AirProfile.__get_trust_model_feat_cols(word_count)
         ]
-        X_shape = np.array(X).reshape(1, -1)
+        feats_shape = np.array(feats).reshape(1, -1)
         model = self.__get_classifier_trust(
-            AirProfile.__get_trust_model_fname(wc))
+            AirProfile.__get_trust_model_fname(word_count))
 
         return self.Prediction(
-            np.round(model.predict_proba(X_shape)[0][1], 2),
-            model.predict(X_shape)[0])
+            np.round(model.predict_proba(feats_shape)[0][1], 2),
+            model.predict(feats_shape)[0])
 
     def __classify_sentence(self, tokens):
         """Classifies a sentence based on the trust category models.
@@ -183,11 +185,11 @@ class AirProfile(object):
 
         return output
 
-    def predict_topics(self, input, strip_html=True):
+    def predict_topics(self, profile, strip_html=True):
         """Predicts the trust evaluation topics for a profile.
 
         Args:
-            input: An Airbnb host profile, as a string.
+            profile: An Airbnb host profile, as a string.
             strip_html: Whether HTML tags in the input should be stripped. True
                 by default, but can be disabled for speed if the input is known
                 to be sanitized.
@@ -198,24 +200,25 @@ class AirProfile(object):
         Raises:
             ValueError: If the input is an invalid or empty string.
         """
-        if not (input and input.strip()):
+        if not (profile and profile.strip()):
             raise ValueError
 
-        sentence_tokens = self.__preprocess(input, strip_html)
+        sentence_tokens = self.__preprocess(profile, strip_html)
 
         results = []
-        for s in sentence_tokens:
-            probs = np.array([c.prob[1] for c in self.__classify_sentence(s)])
+        for token in sentence_tokens:
+            probs = np.array(
+                [c.prob[1] for c in self.__classify_sentence(token)])
             predictions = {}
-            for i in range(len(FEAT_WC_CATEGORIES)):
-                predictions[FEAT_WC_CATEGORIES[i]] = np.round(probs[i], 2)
-            results.append([' '.join(s.raw), predictions])
+            for idx, cat in enumerate(FEAT_WC_CATEGORIES):
+                predictions[cat] = np.round(probs[idx], 2)
+            results.append([' '.join(token.raw), predictions])
 
         return results
 
     # TODO(kenlimmj): Consider making this a decorator, since it's used by both
     # `predict_topics` and `predict_trust`.
-    def __preprocess(self, input, strip_html=True):
+    def __preprocess(self, profile, strip_html=True):
         """Cleans and tokenizes an input string for trust prediction.
 
         Performs the follow operations, in order:
@@ -227,7 +230,7 @@ class AirProfile(object):
         6. Lemmatizes each token.
 
         Args:
-            input: The string to be pre-processed.
+            profile: The string to be pre-processed.
             strip_html: Whether HTML tags in the input should be stripped. True
                 by default, but can be disabled for speed if the input is known
                 to be sanitized.
@@ -236,7 +239,7 @@ class AirProfile(object):
             A list of AirProfile.SentenceToken.
         """
         stripped_html = BeautifulSoup(
-            input, 'lxml').get_text() if strip_html else input
+            profile, 'lxml').get_text() if strip_html else profile
 
         sentences = [
             str(s.decode('utf-8')).translate(None, NON_ALNUM_CHARS).lower()
@@ -244,8 +247,8 @@ class AirProfile(object):
         ]
 
         output = []
-        for s in sentences:
-            tokens = s.split()
+        for sent in sentences:
+            tokens = sent.split()
             tokens_stop = [t for t in tokens if t not in STOPWORDS]
 
             tokens_lemm_verb = [self.__lemm_v[t] for t in tokens_stop]
@@ -256,23 +259,22 @@ class AirProfile(object):
         return output
 
     @staticmethod
-    def __get_trust_model_feat_cols(wc):
+    def __get_trust_model_feat_cols(word_count):
         """Gets the LIWC features to be evaluated based on word count."""
         feat_cols = FEAT_WC_LING + FEAT_WC_PSYCH + FEAT_WC_CONCERN
-        if wc > 19:
+        if word_count > 19:
             feat_cols += FEAT_WC_CATEGORIES
         return feat_cols
 
     @staticmethod
-    def __get_trust_model_fname(wc):
+    def __get_trust_model_fname(word_count):
         """Gets the trust model to be used based on word count."""
-        if wc <= 19:
+        if word_count <= 19:
             return 'trust0.pkl'
-        elif wc <= 36:
+        elif word_count <= 36:
             return 'trust1.pkl'
-        elif wc <= 58:
+        elif word_count <= 58:
             return 'trust2.pkl'
-        elif wc <= 88:
+        elif word_count <= 88:
             return 'trust3.pkl'
-        else:
-            return 'trust4.pkl'
+        return 'trust4.pkl'
